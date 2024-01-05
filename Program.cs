@@ -8,7 +8,7 @@ builder.Services.AddAntiforgery();
 
 builder.Services.Configure<IISServerOptions>(options =>
 {
-    options.MaxRequestBodySize = long.Parse(builder.Configuration["MaxRequestBodySize"]!); // 200MB
+    options.MaxRequestBodySize = long.Parse(builder.Configuration["MaxRequestBodySize"]!);
 });
 builder.WebHost.ConfigureKestrel(options =>
 {
