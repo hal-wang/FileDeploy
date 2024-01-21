@@ -39,9 +39,9 @@ app.MapPut("/", async (
 
     try
     {
-        await ExecCommands(preCommand);
+        await ExecCommands(preCommand, path);
         await CopyFiles(files, path);
-        await ExecCommands(postCommand);
+        await ExecCommands(postCommand, path);
     }
     catch (Exception ex)
     {
@@ -70,7 +70,7 @@ async static Task CopyFiles(IFormFileCollection files, string path)
     }
 }
 
-async static Task ExecCommands(string? command)
+async static Task ExecCommands(string? command, string path)
 {
     if (string.IsNullOrEmpty(command)) return;
 
@@ -85,7 +85,7 @@ async static Task ExecCommands(string? command)
     }
     await File.WriteAllTextAsync(tempFile, command);
 
-    var psi = new ProcessStartInfo(tempFile) { RedirectStandardOutput = true };
+    var psi = new ProcessStartInfo(tempFile) { RedirectStandardOutput = true, WorkingDirectory = path };
     var proc = Process.Start(psi) ?? throw new Exception("Can not exec command.");
     using var sr = proc.StandardOutput;
     while (!sr.EndOfStream)
