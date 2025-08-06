@@ -1,10 +1,25 @@
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Hosting.WindowsServices;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 
-var builder = WebApplication.CreateBuilder(args);
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    ContentRootPath = WindowsServiceHelpers.IsWindowsService() ? AppDomain.CurrentDomain.BaseDirectory : default,
+});
+builder.Host.UseWindowsService();
+builder.Host.ConfigureServices((hostContext, services) =>
+{
+    services.Configure<HostOptions>(options =>
+    {
+        options.ShutdownTimeout = TimeSpan.FromSeconds(1);
+    });
+});
+builder.Configuration.AddJsonFile(Path.Join(AppDomain.CurrentDomain.BaseDirectory, "appsettings.json"), false, true);
+
 builder.Services.AddAntiforgery();
 
 builder.Services.Configure<IISServerOptions>(options =>
@@ -77,7 +92,7 @@ async static Task ExecCommands(string? command, string path)
     if (string.IsNullOrEmpty(command)) return;
 
     var isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
-    var tempFile = Path.Join(Path.GetDirectoryName(Environment.ProcessPath), "temp.command.");
+    var tempFile = Path.Join(AppDomain.CurrentDomain.BaseDirectory, "temp.command.");
     tempFile = isWindows ? tempFile + "bat" : tempFile + "sh";
     await File.WriteAllTextAsync(tempFile, command);
 
