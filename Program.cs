@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddAntiforgery();
@@ -39,6 +40,7 @@ app.MapPut("/", async (
 
     try
     {
+        path = Regex.Replace(path, @"^/+", "/");
         await ExecCommands(preCommand, path);
         await CopyFiles(files, path);
         await ExecCommands(postCommand, path);
@@ -74,18 +76,16 @@ async static Task ExecCommands(string? command, string path)
 {
     if (string.IsNullOrEmpty(command)) return;
 
+    var isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
     var tempFile = Path.Join(Path.GetDirectoryName(Environment.ProcessPath), "temp.command.");
-    if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-    {
-        tempFile += "bat";
-    }
-    else
-    {
-        tempFile += "sh";
-    }
+    tempFile = isWindows ? tempFile + "bat" : tempFile + "sh";
     await File.WriteAllTextAsync(tempFile, command);
 
-    var psi = new ProcessStartInfo(tempFile) { RedirectStandardOutput = true, WorkingDirectory = path };
+    var psi = new ProcessStartInfo(isWindows ? tempFile : "/usr/bin/sh", isWindows ? "" : tempFile)
+    {
+        RedirectStandardOutput = true,
+        WorkingDirectory = path
+    };
     var proc = Process.Start(psi) ?? throw new Exception("Can not exec command.");
     using var sr = proc.StandardOutput;
     while (!sr.EndOfStream)
