@@ -38,8 +38,10 @@ builder.Services.Configure<FormOptions>(options =>
 });
 
 var app = builder.Build();
-app.UseAntiforgery();
-
+app.MapGet("/ping", () =>
+{
+    return Results.Ok("pong");
+});
 app.MapPut("/", async (
     HttpContext ctx,
     IFormFileCollection files,
@@ -66,7 +68,7 @@ app.MapPut("/", async (
     }
 
     return Results.NoContent();
-}).DisableAntiforgery();
+});
 
 app.Run();
 
@@ -92,24 +94,45 @@ async static Task ExecCommands(string? command, string path)
     if (string.IsNullOrEmpty(command)) return;
 
     var isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
-    var tempFile = Path.Join(AppDomain.CurrentDomain.BaseDirectory, "temp.command.");
+    var tempFile = Path.Join(path, "temp.command.");
     tempFile = isWindows ? tempFile + "bat" : tempFile + "sh";
     await File.WriteAllTextAsync(tempFile, command);
 
-    var psi = new ProcessStartInfo(isWindows ? tempFile : "/usr/bin/sh", isWindows ? "" : tempFile)
+    try
     {
-        RedirectStandardOutput = true,
-        WorkingDirectory = path
-    };
-    var proc = Process.Start(psi) ?? throw new Exception("Can not exec command.");
-    using var sr = proc.StandardOutput;
-    while (!sr.EndOfStream)
-    {
-        Console.WriteLine(sr.ReadLine());
-    }
+        var psi = new ProcessStartInfo()
+        {
+            FileName = isWindows ? tempFile : "/usr/bin/sh",
+            Arguments = isWindows ? "" : tempFile,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            WorkingDirectory = path
+        };
+        var proc = Process.Start(psi) ?? throw new Exception("Can not exec command.");
+        proc.EnableRaisingEvents = true;
 
-    if (!proc.HasExited)
+        using var stdout = proc.StandardOutput;
+        using var stderr = proc.StandardError;
+
+        _ = Task.Run(async () =>
+        {
+            string? line;
+            while ((line = await stdout.ReadLineAsync()) != null)
+                Console.WriteLine(line);
+        });
+
+        _ = Task.Run(async () =>
+        {
+            string? line;
+            while ((line = await stderr.ReadLineAsync()) != null)
+                Console.Error.WriteLine(line);
+        });
+
+        await proc.WaitForExitAsync();
+        Console.WriteLine($"Process exited with code {proc.ExitCode}");
+    }
+    finally
     {
-        proc.Kill();
+        File.Delete(tempFile);
     }
 }
