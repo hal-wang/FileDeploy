@@ -38,6 +38,7 @@ builder.Services.Configure<FormOptions>(options =>
 });
 
 var app = builder.Build();
+app.UseAntiforgery();
 app.MapGet("/ping", () =>
 {
     return Results.Ok("pong");
@@ -68,7 +69,7 @@ app.MapPut("/", async (
     }
 
     return Results.NoContent();
-});
+}).DisableAntiforgery();
 
 app.Run();
 
@@ -102,8 +103,8 @@ async static Task ExecCommands(string? command, string path)
     {
         var psi = new ProcessStartInfo()
         {
-            FileName = isWindows ? tempFile : "/usr/bin/sh",
-            Arguments = isWindows ? "" : tempFile,
+            FileName = isWindows ? $"\"{tempFile}\"" : "/usr/bin/sh",
+            Arguments = isWindows ? "" : $"\"{tempFile}\"",
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             WorkingDirectory = path
